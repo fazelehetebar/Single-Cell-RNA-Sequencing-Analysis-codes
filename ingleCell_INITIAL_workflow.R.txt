@@ -1,0 +1,184 @@
+setwd("~/single_cell_RNASeq/scripts")
+getwd()
+#### 1a. Installing required packages ####
+
+# This section only needs to be run once on a computer. 
+# One the packages are installed, they need to be loaded every time they will be used (next section)
+
+# Create vector of required package names
+bioconductor_packages <- c("clusterProfiler", "pathview", "AnnotationHub", "org.Mm.eg.db")
+cran_packages <- c("Seurat", "patchwork", "ggplot2", "tidyverse", "viridis", "plyr", "readxl", "scales")
+
+# Compares installed packages to above packages and returns a vector of missing packages
+new_packages <- bioconductor_packages[!(bioconductor_packages %in% installed.packages()[,"Package"])]
+new_cran_packages <- cran_packages[!(cran_packages %in% installed.packages()[,"Package"])]
+
+# Install missing bioconductor packages
+if (!requireNamespace("BiocManager", quietly = TRUE))
+  install.packages("BiocManager")
+BiocManager::install(new_packages)
+
+# Install missing cran packages
+if (length(new_cran_packages)) install.packages(new_cran_packages, repos = "http://cran.us.r-project.org")
+
+# Update all installed packages to the latest version
+update.packages(bioconductor_packages, ask = FALSE)
+update.packages(cran_packages, ask = FALSE, repos = "http://cran.us.r-project.org")
+
+#### 1b. Loading required packages ####
+
+# This section needs to be run every time
+
+# Load packages
+bioconductor_packages <- c("clusterProfiler", "pathview", "AnnotationHub", "org.Mm.eg.db")
+cran_packages <- c("Seurat", "patchwork", "ggplot2", "tidyverse", "viridis", "plyr", "readxl", "scales")
+lapply(cran_packages, require, character.only = TRUE)
+lapply(bioconductor_packages, require, character.only = TRUE)
+
+### 1c. Choose a sample to work with and import the data for that sample into R ####
+
+# Give the sample name here that you want to work with.
+## **USER INPUT**
+sample <- "scRNAHQ1"
+# To see the available samples (choose a sample name from this list):
+list.dirs(full.names = F, recursive = F)
+
+# Use Seurat's 'Read10X()' function to read in the full sample database. Cell Ranger creates 3 main database files that need to be combined into a single Seurat object.
+# Note: these datasets can be very large and take several minutes to import into R. 
+mat <- Read10X(data.dir = paste0(sample,"/outs/filtered_feature_bc_matrix"))
+
+# Have a look at the top 10 rows and columns to see if the data has been imported correctly. You should see gene IDs as rows and barcodes (i.e. cells) as columns
+as.matrix(mat[1:10, 1:10])
+
+# Now convert this to a Seurat object. Again, this may take several minutes to load and use a lot of memory
+mat2 <- CreateSeuratObject(counts = mat, project = sample)
+
+# You can see a summary of the data by simply running the Seurat object name
+mat2
+
+# Set a colour palette that can contrast multiple clusters when you plot them. 
+# You can change these colours as you like. 
+# You can see what R colours are available here: http://www.stat.columbia.edu/~tzheng/files/Rcolor.pdf
+c25 <- c("dodgerblue2", "#E31A1C", "green4",  "#6A3D9A", "#FF7F00", "black", "gold1", "skyblue2", "#FB9A99", "palegreen2", "#CAB2D6", "#FDBF6F", "gray70", "khaki2", "maroon", "orchid1", "deeppink1", "blue1", "steelblue4", "darkturquoise", "green1", "yellow4", "yellow3", "darkorange4", "brown")
+
+
+#### 1d. Processing expression data (dimensionality reduction) ####
+
+# Normalise data
+mat3 <- NormalizeData(mat2)
+
+# Identification of variable features
+mat3 <- FindVariableFeatures(mat3, selection.method = "vst", nfeatures = nrow(mat3))
+
+# Scaling the data
+all.genes <- rownames(mat3)
+mat3 <- ScaleData(mat3, features = all.genes)
+
+# Perform linear dimensional reduction (PCA. This may take several minutes to run)
+mat3 <- RunPCA(mat3, features = VariableFeatures(object = mat3))
+
+#### 2f. Identify markers in cells ####
+
+# Create a vector called 'markers' that contains each of the markers you want to examine. 
+# These should be gene symbols. Replace the gene symbols below with your target markers.
+## **USER INPUT**
+markers <- c("P2RY12", "TMEM119", "PTPRC")
+
+# You can see if the markers you provided are present:
+sum(row.names(mat) %in% markers)
+
+## USER INPUT
+# You can see if an individual marker is present like so (substitute for a marker of choice):
+sum(row.names(mat) == "PTPRC")
+# Outputs 1 if the marker is present, 0 if it isn't
+
+# Pull out just the read counts for your defined markers
+y <- mat[row.names(mat) %in% markers, ]
+# First count all cells
+# Then make a loop to cycle through all markers (defined in previously created 'markers' vector)
+a <- length(colnames(y))
+for (i in 1:length(markers)) {
+  
+  a <- c(a, sum(y[i,] == 0))
+  
+}
+# Do a sum of the columns
+y2 <- colSums(y)
+# See if any zeros. If so, these cells are not target cells (as determined by absence of any target cell markers)
+count <- c(a, sum(y2 == 0))
+# Name the vector elements
+names(count) <- c("Total_cells", markers, "All_zero")
+# Generate the table
+as.data.frame(count)
+#### 1e. Plot of highly variable genes ####
+
+# Identify the 10 most highly variable genes
+top_genes <- head(VariableFeatures(mat3), 30)
+
+# plot variable features with labels
+p <- VariableFeaturePlot(mat3, pt.size = 2, cols = c("black", "firebrick"))
+p <- LabelPoints(plot = p, points = top_genes, repel = TRUE) +
+  theme_bw() +
+  theme(text = element_text(size = 17))
+p
+
+#### 2. Processing expression data (dimensionality reduction) ####
+
+#2a. Normalise data
+mat3 <- NormalizeData(mat2)
+
+# Identification of variable features
+mat3 <- FindVariableFeatures(mat3, selection.method = "vst", nfeatures = nrow(mat3))
+
+# Scaling the data
+all.genes <- rownames(mat3)
+mat3 <- ScaleData(mat3, features = all.genes)
+
+# Perform linear dimensional reduction (PCA. This may take several minutes to run)
+mat3 <- RunPCA(mat3, features = VariableFeatures(object = mat3))
+
+#### 2b. PCA, UMAP and t-SNE plots ####
+
+# First we need to also run UMAP and tSNE dimensionality reduction and add these results to our main Seurat object.
+# As with PCA, these may take several minutes to run
+mat3 <- RunUMAP(mat3, dims = 1:3, verbose = F)
+mat3 <- RunTSNE(mat3, dims = 1:3, verbose = F)
+
+# Now we can plot all 3 results. You can modify the code to alter the appearance of these plots as described in section 2h.
+
+
+# PCA plot
+
+p <- DimPlot(mat3, reduction = "pca", pt.size = 0.5, label = FALSE, label.size = 4, label.color = "white", cols = c("firebrick")) +
+  theme_bw() +
+  theme(legend.position="none", axis.title=element_text(size=16), axis.text=element_text(size=14))
+p
+
+# UMAP
+
+p <- DimPlot(mat3, reduction = "umap", pt.size = 0.5, label = FALSE, label.size = 8, label.color = "black", cols = c("firebrick")) +
+  theme_bw() +
+  theme(legend.position="none", axis.title=element_text(size=16), axis.text=element_text(size=14))
+p
+# t-SNE
+
+p <- DimPlot(mat3, reduction = "tsne", pt.size = 0.5, label = FALSE, label.size = 8, label.color = "black", cols = c("firebrick")) +
+  theme_bw() +
+  theme(legend.position="none", axis.title=element_text(size=16), axis.text=element_text(size=14))
+p
+
+#### 3. Remove low quality or outlier cells ####
+
+# Generate a violin plot.
+VlnPlot(mat2, features = c("nFeature_RNA", "nCount_RNA"), ncol = 3)
+
+# And a scatter plot
+FeatureScatter(mat2, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+
+# Use these plot to choose and enter a minimum (nFeature_RNA > xxx) and maxiumum (nFeature_RNA < xxxx) below
+mat3_filt <- subset(mat3, subset = nFeature_RNA > 200 & nFeature_RNA < 6000)
+
+# t-SNE
+
+p <- FeaturePlot(mat3, features = markers, reduction = "tsne", cols = c("red", "lightgrey"), pt.size = 0.25)
+p
