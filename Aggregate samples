@@ -1,0 +1,59 @@
+#### 1. Choose samples to aggregate and import data ####
+
+# See which samples you've run through section 3
+# This will list every <samplename>_seurat_filtered.rds data file that you've generated
+dir(pattern = "seurat_filtered.rds")
+
+# Enter the sample names you wish to aggregate from the list above (just the names, without the '_seurat_filtered.rds').
+## **USER INPUT**
+samples <- c("scRNAHQ1", "scRNAHQ2")
+
+# Give your aggregate samples a name (for example, "high_low"). This is for naming plots and such.
+sample <- "scRNAHQ1_scRNAHQ2"
+
+# Now import the data files for those samples.
+samplist <- list()
+for (i in 1:length(samples)){
+  assign(samples[i], readRDS(paste0(samples[i], "_seurat_filtered.rds")))
+  samplist[[i]] <- get(samples[i])
+}
+
+# Then merge these datasets (note that this tags your cells with your sample names)
+data <- merge(samplist[[1]], y = samplist[[2:length(samplist)]], add.cell.ids = samples, project = sample)
+
+# See a summary of your data object (note that 'samples' means cells and 'features' means genes)
+data
+
+# This should contain the combined number of cells from all your samples. 
+# You can see the number of cells in each sample by typing one of your combined sample names below.
+## **USER INPUT**
+scRNAHQ1
+
+#### 2. Processing expression data (dimensionality reduction) ####
+
+# Normalise data
+data1 <- NormalizeData(data)
+# Identification of variable features
+data1 <- FindVariableFeatures(data1, selection.method = "vst", nfeatures = nrow(data1))
+# Scaling the data
+all.genes <- rownames(data1)
+data1 <- ScaleData(data1, features = all.genes)
+# Perform linear dimensional reduction (PCA)
+data1 <- RunPCA(data1, features = VariableFeatures(object = data1))
+
+# The above normalises and scales the data, finds variable features and does the initial dimensionality reduction. 
+# Now we can run t-SNE and UMAP reduction.
+data1 <- RunUMAP(data1, dims = 1:3, verbose = F)
+data1 <- RunTSNE(data1, dims = 1:3, verbose = F)
+
+# As in section 3, we can view the top variable genes, but this time for the combined samples. 
+# See section 3 for details on modifying the following plot:
+
+# Identify the 10 most highly variable genes
+top_genes <- head(VariableFeatures(data1), 30)
+# plot variable features with labels
+p <- VariableFeaturePlot(data1, pt.size = 2, cols = c("black", "firebrick"))
+p <- LabelPoints(plot = p, points = top_genes, repel = TRUE) +
+  theme_bw() +
+  theme(text = element_text(size = 17))
+p
