@@ -1,0 +1,81 @@
+#### 1. Choosing the correct resolution ####
+
+# Install and load the clustree package:
+install.packages("clustree")
+library(clustree)
+
+# Then generate a range of clusters, from 0 to 1, at 0.1 increments ("resolution = seq(0, 1, 0.1)").
+mat3_clust <- FindNeighbors(mat3_filt, dims = 1:10)
+mat3_clust <- FindClusters(mat3_clust, resolution = seq(0, 1, 0.1), verbose = F)
+
+# Convert the results into a Seurat object, which can be used as input into "clustree()"
+clus_seurat <- CreateSeuratObject(counts = mat3_clust@assays$RNA$counts, meta.data = mat3_clust[[]])
+clus_seurat[['TSNE']] <- CreateDimReducObject(embeddings = Embeddings(object = mat3_clust, reduction = "pca"), key = "tSNE_")
+
+# Generate the tree. 
+# Refer to the clustree manual for tips on how to use this tree to choose the optimal `resolution`
+# https://cran.r-project.org/web/packages/clustree/vignettes/clustree.html
+clustree(clus_seurat, prefix = "RNA_snn_res.") + scale_color_manual(values=c25) + scale_edge_color_continuous(low = "blue", high = "red")
+
+
+
+#### 2. Calculate the clusters ####
+
+# First you need to re-run the variable feature calculation, scaling, dimensionality reduction (PCA, t-SNE and UMAP). 
+# This may take several minutes to run.
+mat3_filt <- FindVariableFeatures(mat3_filt, selection.method = "vst", nfeatures = nrow(mat3_filt))
+all.genes <- rownames(mat3_filt)
+mat3_filt <- ScaleData(mat3_filt, features = all.genes)
+mat3_filt <- RunPCA(mat3_filt, dims = 1:3, verbose = F)
+mat3_filt <- RunUMAP(mat3_filt, dims = 1:3, verbose = F)
+mat3_filt <- RunTSNE(mat3_filt, dims = 1:3, verbose = F)
+
+# Then you generate a 'nearest neighbor' graph by calculating the neighborhood overlap (Jaccard index) 
+# between every cell and identify clusters of cells based on shared nearest neighbor (SNN).
+mat3_filt <- FindNeighbors(mat3_filt, dims = 1:10)
+## **USER INPUT** Enter a resolution based off the clustree plot
+mat3_filt <- FindClusters(mat3_filt, resolution = 0.4)
+
+# You can see how many cells there are per cluster like so:
+cellcount <- as.data.frame(table(mat3_filt@meta.data[4]))
+names(cellcount) <- c("Cluster", "Cell_count")
+cellcount
+
+
+
+#### 3. Plot the results ####
+
+## PCA Plot ##
+
+# Before filtration:
+p <- DimPlot(mat3, reduction = "pca", pt.size = 1, cols = c25) + 
+  theme_bw() +
+  theme(legend.title=element_text(size=14), legend.text = element_text(size = 14), axis.title=element_text(size=18), axis.text=element_text(size=14)) + labs(color="Cluster")
+p
+
+# After filtration:
+p <- DimPlot(mat3_filt, reduction = "pca", pt.size = 1, cols = c25) + 
+  theme_bw() +
+  theme(legend.title=element_text(size=14), legend.text = element_text(size = 14), axis.title=element_text(size=18), axis.text=element_text(size=14)) + labs(color="Cluster")
+p
+
+## t_SNE ##
+
+# Before filtration:
+p <- DimPlot(mat3, reduction = "tsne", pt.size = 1, cols = c25) + 
+  theme_bw() +
+  theme(legend.title=element_text(size=14), legend.text = element_text(size = 14), axis.title=element_text(size=18), axis.text=element_text(size=14)) + labs(color="Cluster")
+p
+
+# After filtration:
+p <- DimPlot(mat3_filt, reduction = "tsne", pt.size = 1, cols = c25) + 
+  theme_classic() +
+  theme(legend.title=element_text(size=14), legend.text = element_text(size = 14), axis.title=element_text(size=18), axis.text=element_text(size=14)) + labs(color="Cluster")
+p
+
+#### 4. Output filtered results ####
+
+# Output the filtered Seurat object as a file
+# This file will be imported in the other sections of this workflow
+# This is a large amount of data, so may take a few minutes
+saveRDS(mat3_filt, file = paste0(sample, "_seurat_filtered.rds"))
