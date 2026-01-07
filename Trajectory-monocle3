@@ -1,0 +1,156 @@
+
+# Convert to cell_data_set
+cds <- as.cell_data_set(data1)
+
+cds <- as.cell_data_set(data1)
+cds <- cluster_cells(cds)
+p1 <- plot_cells(cds, color_cells_by = "cluster",show_trajectory_graph = FALSE)
+p2 <- plot_cells(cds, color_cells_by = "partition", show_trajectory_graph = TRUE)
+wrap_plots(p1, p2)
+
+integrated.sub <- subset(as.Seurat(cds, assay = NULL), monocle3_partitions == 1)
+cds <- as.cell_data_set(integrated.sub)
+
+
+cds <- learn_graph(cds, use_partition = TRUE, verbose = FALSE)
+
+plot_cells(cds,
+           color_cells_by = "cluster",
+           label_groups_by_cluster=FALSE,
+           label_leaves=FALSE,
+           label_branch_points=FALSE)
+
+
+# Plot cells with custom dot size, color by clusters, and custom cluster label size
+plot_cells(cds,
+           color_cells_by = "cluster",          
+           label_groups_by_cluster = FALSE,        
+           label_leaves = FALSE,                   
+           label_branch_points = FALSE,            
+           cell_size = 1.5,                       
+           group_label_size = 4,                  
+           palette = c("dodgerblue2", "#E31A1C", "green4",  "#6A3D9A", "#FF7F00", "black", "gold1", "skyblue2", "#FB9A99", "palegreen2", "#CAB2D6", "#FDBF6F", "gray70", "khaki2", "maroon", "orchid1", "deeppink1", "blue1", "steelblue4", "darkturquoise", "green1", "yellow4", "yellow3", "darkorange4", "brown"))
+
+library(ggplot2)
+
+# Plot without specifying palette
+p <- plot_cells(cds,
+                color_cells_by = "cluster",            
+                label_groups_by_cluster = FALSE,       
+                label_leaves = FALSE,                  
+                label_branch_points = FALSE,
+                label_roots = FALSE,
+                cell_size = 0.1, 
+                group_label_size = 0)
+
+# Customize the colors using ggplot2
+p + scale_color_manual(values = c( "white", "white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","white","darkturquoise","dodgerblue2","#FB9A99","dodgerblue3","dodgerblue4","palegreen2", "gray70","#CAB2D6","#6A3D9A",
+                                   "steelblue"))
+
+
+cds <- order_cells(cds, root_cells = colnames(cds[,clusters(cds) == 5]))
+plot_cells(cds,
+           color_cells_by = "pseudotime",
+           group_cells_by = "cluster",
+           label_cell_groups = FALSE,
+           label_groups_by_cluster= FALSE,
+           label_leaves=FALSE,
+           label_branch_points=FALSE,
+           label_roots = FALSE,
+           cell_size = 0.1,
+           trajectory_graph_color = "grey6")
+
+
+saveRDS(cds, file = "cds_processed.rds")
+
+integrated.sub <- as.Seurat(cds, assay = NULL)
+FeaturePlot(integrated.sub, "monocle3_pseudotime")
+
+cds_graph_test_results <- graph_test(cds,
+                                     neighbor_graph = "principal_graph",
+                                     cores = 8)
+
+
+# Step 2: Plot the expression of a specific gene through pseudotime
+# Define the gene to visualize
+gene_to_plot <- "P2RY12"  # Replace with your actual gene name
+
+# Plot gene expression in pseudotime
+plot_genes_in_pseudotime(cds, genes = gene_to_plot,
+                         color_by = "pseudotime",          
+                         cell_size = 1.5,                  
+                         trajectory_graph_color = "grey6", 
+                         label_cell_groups = FALSE,       
+                         label_leaves = FALSE,              
+                         label_branch_points = FALSE,     
+                         label_roots = FALSE)               
+
+
+# Load necessary libraries
+library(monocle3)
+
+blast_genes <- rownames(subset(rowData(data), gene_short_name %in% c("P2RY12", "AIF1", "MYOG")))
+
+# Plot the expression of these genes, grouped by a specific variable (e.g., "pseudotime" or "cluster")
+plot_genes_jitter(data[blast_genes, ], 
+                  grouping = "pseudotime",  # You can change this to "cluster" or any metadata column
+                  min_expr = 0.1)
+
+
+# Check the available columns in the rowData of your dataset
+colnames(rowData(data))
+
+# Check row names directly (these might be the gene names)
+rownames(data)
+
+# Subset by row names if gene names are in rownames
+blast_genes <- rownames(data)[rownames(data) %in% c("P2RY12", "AIF1", "C1QA", "CCL22")]
+
+# Plot gene expression for the selected genes
+plot_genes_jitter(data[blast_genes, ], 
+                  grouping = "pseudotime",  # Adjust grouping as needed
+                  min_expr = 0.1)
+
+ls("package:monocle")
+
+# Plotting gene expression along pseudotime for each gene
+for (gene in blast_genes) {
+  plot_genes_in_pseudotime(data, 
+                           gene = gene, 
+                           color_by = "pseudotime", 
+                           cell_size = 1.5)
+}
+
+
+plot_genes_in_pseudotime
+# Loop through each gene and plot its expression over pseudotime
+for (gene in blast_genes) {
+  plot_genes_in_pseudotime(
+    cds_subset = data,        
+    min_expr = 0.1,             
+    cell_size = 1.5,           
+    color_cells_by = "pseudotime",
+  )
+}
+
+# Assuming that your gene names are currently stored as row names in rowData
+rowData(data)$gene_short_name <- rownames(rowData(data))
+
+# Loop through each gene and plot its expression over pseudotime
+for (gene in blast_genes) {
+  plot_genes_in_pseudotime(
+    cds_subset = data,                
+    min_expr = 0.1,                  
+    cell_size = 1.5,                  
+    color_cells_by = "pseudotime",   
+    trend_formula = "~ splines::ns(pseudotime, df=3)",  
+    label_by_short_name = TRUE,      
+    gene = gene                       
+  )
+}
+
+# Check expression levels for the genes of interest
+gene_expression_values <- data[blast_genes, ]
+print(gene_expression_values)
+
+
