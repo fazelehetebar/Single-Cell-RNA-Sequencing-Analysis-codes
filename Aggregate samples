@@ -1,4 +1,4 @@
-#### 1. Choose samples to aggregate and import data ####
+### 1. Choose samples to aggregate and import data ####
 
 # See which samples you've run through section 3
 # This will list every <samplename>_seurat_filtered.rds data file that you've generated
