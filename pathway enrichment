@@ -1,0 +1,112 @@
+### 1. Installing required packages ####
+
+
+bioconductor_packages <- c("clusterProfiler", "pathview", "AnnotationHub", "org.Hs.eg.db")
+
+cran_packages <- c("tidyverse", "ggplot2", "plyr", "readxl", "scales")
+
+# Compares installed packages to above packages and returns a vector of missing packages
+
+new_packages <- bioconductor_packages[!(bioconductor_packages %in% installed.packages()[,"Package"])]
+
+new_cran_packages <- cran_packages[!(cran_packages %in% installed.packages()[,"Package"])]
+
+# Install missing bioconductor packages
+
+if (!requireNamespace("BiocManager", quietly = TRUE))
+  
+  install.packages("BiocManager")
+
+BiocManager::install(new_packages)
+
+# Install missing cran packages
+
+if (length(new_cran_packages)) install.packages(new_cran_packages, repos = http://cran.us.r-project.org)
+
+# Update all installed packages to the latest version
+
+update.packages(bioconductor_packages, ask = FALSE)
+
+update.packages(cran_packages, ask = FALSE, repos = http://cran.us.r-project.org)
+
+
+#### 2. Loading required packages ####
+
+# This section needs to be run every time
+# Load packages
+bioconductor_packages <- c("clusterProfiler", "pathview", "AnnotationHub", "org.Hs.eg.db")
+cran_packages <- c("tidyverse", "ggplot2", "plyr", "readxl", "scales")
+lapply(cran_packages, require, character.only = TRUE)
+lapply(bioconductor_packages, require, character.only = TRUE)
+
+
+
+#### 3. Convert to Entrez gene IDs ####
+
+# Set your working directory
+getwd()
+
+# Import your DE genes data:
+# NOTE: THE DIRECTORY THAT CONTAINS YOUR RESULTS DATA MAY VARY. YOU NEED TO LOOK IN 'H:/workshop/RNAseq' TO SEE WHERE YOUR 'Tables' SUBDIRECTORY IS, AND CHANGE THE BELOW PATH TO REFLECT THAT.
+dat <- read.csv("Tables/DE_1vsALL_clust_0_scRNAHQ4 W.csv", row.names = 1)
+
+
+# Convert the gene symbol column to Entrez IDs
+# NOTE: 'OrgDb=' needs to be your organism database. We're using mouse here, so we're using 'OrgDb=org.Mm.eg.db' if your species was human you'd use 'OrgDb=org.Hs.eg.db', etc
+gene_list <- bitr(gene = dat$SYMBOL , fromType="SYMBOL", toType="ENTREZID", OrgDb=org.Hs.eg.db, drop=TRUE)
+
+
+#### 4. KEGG pathway enrichment ####
+
+# Use clusterProfiler's enrichKEGG() function to match your genes list to KEGG pathways
+kk <- enrichKEGG(gene = gene_list$ENTREZID, organism = "hsu", pvalueCutoff = 0.05, qvalueCutoff = 0.2)
+
+# Now you can save this as a table of enriched KEGG pathways
+# Create a 'results' subdirectory where all figures will be output
+dir.create("results", showWarnings = FALSE)
+write.csv(as.data.frame(kk), "results/Enriched_KEGG_pathways.csv")
+
+
+gene_list_lfc <- merge(gene_list, dat, by.x = "SYMBOL", by.y = "SYMBOL", sort = F)
+lfc2 <- gene_list_lfc$avg_log2FC
+names(lfc2) <- gene_list_lfc$SYMBOL
+
+#### 5. GO term enrichment ####
+
+# Fist select which of the top level terms you want to examine. You can run the analysis for each top-level term by changing this to another term then re-running this code cell and then the following GO code cells. The three terms are "BP", "MF", and "CC".
+ont <- "BP"
+
+# Then run the enrichGO function
+gg <- enrichGO(gene = as.character(gene_list$ENTREZID), OrgDb = org.Hs.eg.db, ont = ont, pvalueCutoff = 0.01, qvalueCutoff = 0.1)
+
+
+# Convert the result to a data frame
+gg_df <- as.data.frame(gg)
+
+# Map Entrez IDs back to gene symbols
+# Create a named vector for mapping Entrez IDs to gene symbols
+entrez_to_symbol <- setNames(gene_list$SYMBOL, gene_list$ENTREZID)
+
+# Replace Entrez IDs in 'geneID' column with gene symbols
+gg_df$geneID <- sapply(gg_df$geneID, function(ids) {
+  paste(entrez_to_symbol[unlist(strsplit(ids, "/"))], collapse = "/")
+})
+head(entrez_to_symbol)
+
+# Now you can save this as a table of enriched GO terms
+write.csv(as.data.frame(gg), paste0("results/Enriched_GO_terms_", ont, ".csv"))
+
+
+#### 6. Plotting GO results ####
+
+# Bar plot
+p <- barplot(gg, showCategory = 14, font.size = 14)
+p
+
+# Dot plot
+p <- dotplot(gg, showCategory = 8, font.size = 14)
+p
+
+# Network plot
+p <- cnetplot(gg, showCategory = 8, colorEdge = TRUE, node_label = "category")
+p
