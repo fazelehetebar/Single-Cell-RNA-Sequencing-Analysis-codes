@@ -43,8 +43,8 @@ data1 <- RunPCA(data1, features = VariableFeatures(object = data1))
 
 # The above normalises and scales the data, finds variable features and does the initial dimensionality reduction. 
 # Now we can run t-SNE and UMAP reduction.
-data1 <- RunUMAP(data1, dims = 1:3, verbose = F)
-data1 <- RunTSNE(data1, dims = 1:3, verbose = F)
+data1 <- RunUMAP(data1, dims = 1:30, verbose = F)
+data1 <- RunTSNE(data1, dims = 1:30, verbose = F)
 
 # As in section 3, we can view the top variable genes, but this time for the combined samples. 
 # See section 3 for details on modifying the following plot:
